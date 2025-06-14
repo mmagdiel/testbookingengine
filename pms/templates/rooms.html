@@ -1,19 +1,23 @@
 {% extends "main.html"%}
 
 {% block content %}
-<h1>Habitaciones del hotel</h1>
-{% for room in rooms%}
-<div class="row card mt-3 mb-3 hover-card bg-tr-250">
-    <div class="col p-3">
-        <div class="">
-            {{room.name}} ({{room.room_type__name}})
+    <h1>Habitaciones del hotel</h1>
+    <form method="GET" action="{% url 'rooms_search' %}">
+        <div class="form-group d-flex" >
+            <input type="text" name="by" class="form-control" placeholder="Filtrar por nombre de Habitación">
+            <input type="submit" class="btn btn-primary mx-2" value="Buscar">
         </div>
-        <div>
-            <a href="{% url 'room_details' pk=room.id%}">Ver detalles</a>
+    </form>
+    {% for room in rooms%}
+        <div class="row card mt-3 mb-3 hover-card bg-tr-250">
+            <div class="col p-3">
+                <div class="room-title">
+                    {{room.name}} ({{room.room_type__name}})
+                </div>
+                <div>
+                    <a href="{% url 'room_details' pk=room.id%}">Ver detalles</a>
+                </div>
+            </div>
         </div>
-        
-    </div>
-    
-</div>
-{% endfor %}
+    {% endfor %}
 {% endblock content%}

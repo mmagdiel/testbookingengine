@@ -4,6 +4,15 @@ from django.utils.decorators import method_decorator
 from django.views import View
 from django.views.decorators.csrf import ensure_csrf_cookie
 
+# Standard library imports
+from django.http import JsonResponse, HttpRequest
+
+# Django imports
+from django.db.models import Q
+
+# Application imports
+from pms.models import Room
+
 from .form_dates import Ymd
 from .forms import *
 from .models import Room
@@ -240,7 +249,19 @@ class RoomsView(View):
     def get(self, request):
         # renders a list of rooms
         rooms = Room.objects.all().values("name", "room_type__name", "id")
-        context = {
-            'rooms': rooms
-        }
+        context = { 'rooms': rooms }
         return render(request, "rooms.html", context)
+
+
+class RoomsSearch(View):
+    def get(self, request):
+        by = request.GET.get('by', '').lstrip().rstrip().capitalize()
+        if not by:
+            rooms = Room.objects.all().values("name", "room_type__name", "id")
+            context = { 'rooms': rooms }
+            return render(request, "rooms.html", context)
+        # renders a list of rooms
+        rooms = Room.objects.filter(name__contains=by).values("name", "room_type__name", "id")
+        context = { 'rooms': rooms }
+        return render(request, "rooms.html", context)
+

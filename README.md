@@ -45,6 +45,16 @@ To deploy this project locally run
     python manage.py runserver
 ```
 
+### Using Virtual environments
+
+```bash
+    python -m venv venv
+    source venv/bin/activate
+    pip install -r requirements.txt
+    python manage.py runserver
+    python manage.py test ./pms/tests
+```
+
 ### Django admin (/admin)
 Use for username and password for superuser is "admin" (without quotes).Remember to change it.
 
