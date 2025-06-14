@@ -1,6 +1,7 @@
 from django.db.models import F, Q, Count, Sum
-from django.shortcuts import render, redirect
+from django.shortcuts import render, get_object_or_404, redirect
 from django.utils.decorators import method_decorator
+from django.contrib import messages
 from django.views import View
 from django.views.decorators.csrf import ensure_csrf_cookie
 
@@ -9,6 +10,55 @@ from .forms import *
 from .models import Room
 from .reservation_code import generate
 
+def check_room_availability(room, checkin, checkout, exclude_booking_id=None):
+    """
+    Check if a room is available for the given dates
+    Uses Django's date handling
+    """
+    # Get all confirmed bookings for this room, excluding the current booking being edited
+    existing_bookings = Booking.objects.filter(
+        room=room,
+        state="NEW"  # Only confirmed bookings
+    )
+    
+    if exclude_booking_id:
+        existing_bookings = existing_bookings.exclude(id=exclude_booking_id)
+    
+    # Check for date conflicts
+    for existing_booking in existing_bookings:
+        # Check if dates overlap
+        # Overlap occurs if:
+        # - New checkin is before existing checkout AND
+        # - New checkout is after existing checkin
+        if (checkin < existing_booking.checkout and 
+            checkout > existing_booking.checkin):
+            return False
+    
+    return True
+
+
+def calculate_booking_total(booking, checkin, checkout):
+    """
+    Calculate the total cost for the booking based on new dates
+    Handles cases where room_type might be None
+    """
+    # Calculate number of nights using Django's date handling
+    nights = (checkout - checkin).days
+    
+    try:
+        # Try to get price from room_type if it exists
+        if (hasattr(booking.room, 'room_type') and 
+            booking.room.room_type is not None and 
+            hasattr(booking.room.room_type, 'price')):
+            total = nights * booking.room.room_type.price
+        else:
+            # Fallback: use a default price
+            total = nights * 100.00  # Default price per night
+    except (AttributeError, TypeError):
+        # Fallback for any attribute or type errors
+        total = nights * 100.00
+    
+    return total
 
 class BookingSearchView(View):
     # renders search results for bookingings
@@ -149,6 +199,55 @@ class DeleteBookingView(View):
     def post(self, request, pk):
         Booking.objects.filter(id=pk).update(state="DEL")
         return redirect("/")
+
+
+class EditBookingDatesView(View):
+    # renders the booking edit form
+    def get(self, request, pk):
+        booking = get_object_or_404(Booking, pk=pk)
+        if booking.state == "DEL":
+            messages.error(request, "No se puede editar una reserva cancelada.")
+            return redirect('home')
+        
+        error_message = None
+        form = EditBookingDatesForm(instance=booking)
+        context = {
+            'booking': booking,
+            'form': form,
+            'error_message': error_message
+        }
+
+        return render(request, 'edit_booking_dates.html', context)
+
+    # edit the booking
+    def post(self, request, pk):
+        booking = get_object_or_404(Booking, pk=pk)
+        form = EditBookingDatesForm(request.POST, instance=booking)
+        
+        if form.is_valid():
+            new_checkin = form.cleaned_data['checkin']
+            new_checkout = form.cleaned_data['checkout']
+            
+            # Check availability for the new dates
+            if check_room_availability(booking.room, new_checkin, new_checkout, exclude_booking_id=booking.id):
+                # Save the form (this will update the booking)
+                updated_booking = form.save(commit=False)
+                
+                # Recalculate total if needed
+                updated_booking.total = calculate_booking_total(booking, new_checkin, new_checkout)
+                updated_booking.save()
+                
+                messages.success(request, f"Las fechas de la reserva {booking.code} han sido actualizadas correctamente.")
+                return redirect('home')
+            else:
+                error_message = "No hay disponibilidad para las fechas seleccionadas"
+            
+        context = {
+            'booking': booking,
+            'form': form,
+            'error_message': error_message
+        }
+        return render(request, 'edit_booking_dates.html', context)
 
 
 class EditBookingView(View):

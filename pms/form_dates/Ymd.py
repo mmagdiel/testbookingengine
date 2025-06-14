@@ -7,7 +7,11 @@ class Ymd():
             date_format = "%Y-%m-%d"
             self.date = datetime.strptime(ymd_str, date_format)
         return 
+
     def __str__(self) -> datetime:
         return self.date
     def __sub__(self,other):
         return (self.date-other.date).days
+
+
+
